@@ -122,6 +122,8 @@ def train(args):
     np.savetxt('train_err.out', [l.cpu().detach().numpy() for l in train_loss_all], delimiter=',')
     np.savetxt('val_err.out', val_loss_all, delimiter=',')
 
+    if args.save_model_weights is not None:
+        torch.save(model.state_dict(), args.save_model_weights)
 
 
 if __name__ == '__main__':

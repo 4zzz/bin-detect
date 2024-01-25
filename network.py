@@ -110,6 +110,8 @@ def parse_command_line():
     parser.add_argument('-ns', '--noise_sigma', type=float, default=None)
     parser.add_argument('-ts', '--t_sigma', type=float, default=0.0)
     parser.add_argument('-rr', '--random_rot', action='store_true', default=False)
+    parser.add_argument('-smw', '--save_model_weights', type=str, default=None)
+    parser.add_argument('-lmw', '--load_model_weights', type=str, default=None)
     parser.add_argument('path')
     args = parser.parse_args()
 
@@ -128,4 +130,7 @@ def load_model(args):
         sd_path = 'checkpoints/{:03d}.pth'.format(args.resume)
         print("Resuming from: ", sd_path)
         model.load_state_dict(torch.load(sd_path))
+    if args.load_model_weights is not None:
+        model.load_state_dict(torch.load(args.load_model_weights))
+
     return model
