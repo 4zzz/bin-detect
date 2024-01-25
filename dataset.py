@@ -48,6 +48,12 @@ class Dataset(Dataset):
         with open(path, 'r') as f:
             self.entries = json.load(f)
 
+        # convert paths to host format
+        for i in range(len(self.entries)):
+            for p in {'exr_normals_path', 'exr_positions_path', 'txt_path'}:
+                self.entries[i][p] = os.path.join(*self.entries[i][p].split('\\'))
+
+
         if 'train' not in path and 'val' not in path:
             if self.split == 'train':
                 self.entries = [entry for i, entry in enumerate(self.entries) if i % 5 != 0]
