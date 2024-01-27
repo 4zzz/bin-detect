@@ -8,7 +8,16 @@ import torch
 from torch.utils.data import DataLoader, Dataset
 from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation
+import numpy as np
 
+def visualize_xyz(xyz):
+    img = np.moveaxis(xyz, 0, -1)
+    zeros = np.sum(img, axis=2) == 0
+    img -= np.min(img)
+    img /= np.max(img)
+    img[zeros] = np.array([0. , 0. , 0.])
+    plt.imshow(img)
+    plt.show()
 
 def get_canonical_transform(transform):
     """
@@ -163,6 +172,8 @@ class Dataset(Dataset):
 
         if self.noise_sigma is not None:
             xyz += self.noise_sigma * np.random.randn(*xyz.shape)
+
+        visualize_xyz(xyz)
 
         return {'xyz': xyz, 'bin_rotvec': rotvec, 'bin_translation': t, 'bin_transform': torch.from_numpy(transform),
                 'orig_transform': torch.from_numpy(orig_transform), 'txt_path': entry['txt_path']}
