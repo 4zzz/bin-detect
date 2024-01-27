@@ -153,7 +153,7 @@ class Dataset(Dataset):
         if xyz is None:
             print(exr_path)
             raise ValueError("Image at path ", exr_path)
-        xyz = cv2.resize(xyz, (self.width, self.height), cv2.INTER_NEAREST_EXACT)
+        xyz = cv2.resize(xyz, (self.width, self.height), interpolation=cv2.INTER_NEAREST_EXACT)
         xyz = np.transpose(xyz, [2, 0, 1])
         return xyz
 
