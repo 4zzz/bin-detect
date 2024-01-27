@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import os
+import json
 
 from network import normalized_l2_loss, parse_command_line, load_model
 from dataset import Dataset
@@ -50,6 +51,7 @@ def train(args):
     print("Starting at epoch {}".format(start_epoch))
     print("Running till epoch {}".format(args.epochs))
 
+    training_info = []
     train_loss_all = []
     val_loss_all = []
     for e in range(start_epoch, args.epochs):
@@ -78,7 +80,13 @@ def train(args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-
+        info = {}
+        info['train'] = {
+            'loss_z_running': loss_z_running.item(),
+            'loss_y_running': loss_y_running.item(),
+            'loss_t_running': loss_t_running.item(),
+            'loss_running': loss_running.item()
+        }
         train_loss_all.append(loss_running)
         with torch.no_grad():
             val_losses = []
@@ -110,7 +118,15 @@ def train(args):
             print("medians - \t val loss: {} \t z loss: {} \t y loss: {} \t t loss: {}"
                   .format(np.median(val_losses), np.median(val_losses_z), np.median(val_losses_y), np.median(val_losses_t)))
 
+            info['val'] = {
+                'loss_z_running': np.mean(val_losses_z),
+                'loss_y_running': np.mean(val_losses_y),
+                'loss_t_running': np.mean(val_losses_t),
+                'loss_running': np.mean(val_losses)
+            }
             val_loss_all.append(np.mean(val_losses))
+
+        training_info.append(info)
 
         if args.dump_every != 0 and (e) % args.dump_every == 0:
             print("Saving checkpoint")
@@ -121,6 +137,10 @@ def train(args):
     np.set_printoptions(suppress=True)
     np.savetxt('train_err.out', [l.cpu().detach().numpy() for l in train_loss_all], delimiter=',')
     np.savetxt('val_err.out', val_loss_all, delimiter=',')
+
+    if args.train_info is not None:
+        with open(args.train_info, 'w') as json_file:
+            json.dump(training_info, json_file, indent=4)
 
     if args.save_model_weights is not None:
         torch.save(model.state_dict(), args.save_model_weights)

@@ -112,6 +112,7 @@ def parse_command_line():
     parser.add_argument('-rr', '--random_rot', action='store_true', default=False)
     parser.add_argument('-smw', '--save_model_weights', type=str, default=None)
     parser.add_argument('-lmw', '--load_model_weights', type=str, default=None)
+    parser.add_argument('-ti', '--train_info', type=str, default=None)
     parser.add_argument('path')
     args = parser.parse_args()
 
