@@ -16,7 +16,7 @@ def infer(args, export_to_folder=False):
 
     dir_path = os.path.dirname(args.path)
 
-    val_dataset = Dataset(args.path, 'val', args.input_width, args.input_height, preload=not args.no_preload)
+    val_dataset = Dataset(args.path, 'test', args.input_width, args.input_height, preload=not args.no_preload)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.workers)
 
     np.set_printoptions(suppress=True)
