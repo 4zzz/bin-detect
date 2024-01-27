@@ -12,11 +12,21 @@ import numpy as np
 
 def visualize_xyz(xyz):
     img = np.moveaxis(xyz, 0, -1)
-    zeros = np.sum(img, axis=2) == 0
+
+    non_zeros = np.prod(img, axis=2) != 0
+    points = img[non_zeros]
+
+    zeros = np.prod(img, axis=2) == 0
     img -= np.min(img)
     img /= np.max(img)
     img[zeros] = np.array([0. , 0. , 0.])
+
     plt.imshow(img)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.scatter(points[:,0], points[:,1], points[:,2], marker='o')
+
     plt.show()
 
 def get_canonical_transform(transform):
@@ -120,8 +130,6 @@ class Dataset(Dataset):
         ymin = max(0, ymin)
         xmax = min(w, xmax)
         ymax = min(h, ymax)
-
-        print('Using cutout', xmin, xmax, ymin, ymax)
 
         xyz[:, ymin:ymax, xmin:xmax] = 0.0
 
