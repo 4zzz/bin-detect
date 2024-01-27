@@ -32,7 +32,11 @@ def get_angles(pred, gt, sym_inv=False, eps=1e-7):
 def train(args):
     model = load_model(args)
 
-    train_dataset = Dataset(args.path, 'train', args.input_width, args.input_height, noise_sigma=args.noise_sigma, t_sigma=args.t_sigma, random_rot=args.random_rot, preload=not args.no_preload)
+    train_dataset = Dataset(args.path, 'train', args.input_width, args.input_height,
+                            cutout_prob=args.cutout_prob, cutout_inside=args.cutout_inside,
+                            max_cutout_size=args.cutout_max_size, min_cutout_size=args.cutout_min_size,
+                            noise_sigma=args.noise_sigma, t_sigma=args.t_sigma, random_rot=args.random_rot,
+                            preload=not args.no_preload)
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=args.workers)
 
     val_dataset = Dataset(args.path, 'val', args.input_width, args.input_height, preload=not args.no_preload)
@@ -151,4 +155,5 @@ if __name__ == '__main__':
     Example usage: python train.py -iw 1032 -ih 772 -b 12 -e 500 -de 10 -lr 1e-3 -bb resnet34 -w 0.1 /path/to/MLBinsDataset/EXR/dataset.json
     """
     args = parse_command_line()
+    print('args: ', args)
     train(args)

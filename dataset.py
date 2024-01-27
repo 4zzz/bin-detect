@@ -43,7 +43,10 @@ def get_canonical_transform(transform):
 
 
 class Dataset(Dataset):
-    def __init__(self, path, split, width, height, preload=True, noise_sigma=None, t_sigma=0.0, random_rot=False):
+    def __init__(self, path, split, width, height, preload=True,
+                 cutout_prob=0.0, cutout_inside=True,
+                 max_cutout_size=0.8, min_cutout_size=0.2,
+                 noise_sigma=None, t_sigma=0.0, random_rot=False):
         self.dataset_dir = os.path.dirname(path)
         self.split = split
         self.width = width
@@ -52,6 +55,15 @@ class Dataset(Dataset):
         self.noise_sigma = noise_sigma
         self.t_sigma = t_sigma
         self.random_rot = random_rot
+
+        self.cutout_prob = cutout_prob
+        self.use_cutout = cutout_prob > 0.0
+        self.cutout_inside = cutout_inside
+        self.max_cutout_size = max_cutout_size
+        self.min_cutout_size = min_cutout_size
+
+        if self.split != 'train' and self.cutout_prob > 0.0:
+            print("***** Split is not train, but cutout is enabled! *****")
 
         print("Loading dataset from path: ", path)
         with open(path, 'r') as f:
@@ -76,6 +88,44 @@ class Dataset(Dataset):
             for entry in self.entries:
                 print(entry)
                 entry['xyz'] = self.load_xyz(entry)
+
+    def cutout(self, xyz):
+        mask_width = np.random.randint(int(self.min_cutout_size * self.width), int(self.max_cutout_size * self.width))
+        mask_height = np.random.randint(int(self.min_cutout_size * self.height), int(self.max_cutout_size * self.height))
+
+        mask_width_half = mask_width // 2
+        offset_width = 1 if mask_width % 2 == 0 else 0
+
+        mask_height_half = mask_height // 2
+        offset_height = 1 if mask_height % 2 == 0 else 0
+
+        xyz = xyz.copy()
+
+        h, w = self.height, self.width
+
+        if self.cutout_inside:
+            cxmin, cxmax = mask_width_half, w + offset_width - mask_width_half
+            cymin, cymax = mask_height_half, h + offset_height - mask_height_half
+        else:
+            cxmin, cxmax = 0, w + offset_width
+            cymin, cymax = 0, h + offset_height
+
+        cx = np.random.randint(cxmin, cxmax)
+        cy = np.random.randint(cymin, cymax)
+        xmin = cx - mask_width_half
+        ymin = cy - mask_height_half
+        xmax = xmin + mask_width
+        ymax = ymin + mask_height
+        xmin = max(0, xmin)
+        ymin = max(0, ymin)
+        xmax = min(w, xmax)
+        ymax = min(h, ymax)
+
+        print('Using cutout', xmin, xmax, ymin, ymax)
+
+        xyz[:, ymin:ymax, xmin:xmax] = 0.0
+
+        return xyz
 
     def __len__(self):
         """
@@ -173,7 +223,11 @@ class Dataset(Dataset):
         if self.noise_sigma is not None:
             xyz += self.noise_sigma * np.random.randn(*xyz.shape)
 
-        visualize_xyz(xyz)
+        if self.use_cutout:
+            if np.random.rand() < self.cutout_prob:
+                xyz = self.cutout(xyz)
+
+        #visualize_xyz(xyz)
 
         return {'xyz': xyz, 'bin_rotvec': rotvec, 'bin_translation': t, 'bin_transform': torch.from_numpy(transform),
                 'orig_transform': torch.from_numpy(orig_transform), 'txt_path': entry['txt_path']}

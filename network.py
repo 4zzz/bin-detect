@@ -113,6 +113,10 @@ def parse_command_line():
     parser.add_argument('-smw', '--save_model_weights', type=str, default=None)
     parser.add_argument('-lmw', '--load_model_weights', type=str, default=None)
     parser.add_argument('-ti', '--train_info', type=str, default=None)
+    parser.add_argument('-cp', '--cutout_prob', type=float, default=0.0)
+    parser.add_argument('-cmaxs', '--cutout_max_size', type=float, default=0.8)
+    parser.add_argument('-cmins', '--cutout_min_size', type=float, default=0.2)
+    parser.add_argument('-ci', '--cutout_inside', action='store_true', default=False)
     parser.add_argument('path')
     args = parser.parse_args()
 
