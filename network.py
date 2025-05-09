@@ -117,6 +117,9 @@ def parse_command_line():
     parser.add_argument('-cmaxs', '--cutout_max_size', type=float, default=0.8)
     parser.add_argument('-cmins', '--cutout_min_size', type=float, default=0.2)
     parser.add_argument('-ci', '--cutout_inside', action='store_true', default=False)
+    parser.add_argument('-crp', '--crop_prob', type=float, default=0.0)
+    parser.add_argument('-crmax', '--crop_max_amount', type=float, default=0.3)
+    parser.add_argument('-crmin', '--crop_min_amount', type=float, default=0.0)
     parser.add_argument('path')
     args = parser.parse_args()
 

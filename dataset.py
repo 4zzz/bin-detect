@@ -10,6 +10,7 @@ from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation
 import numpy as np
 
+
 def visualize_xyz(xyz):
     img = np.moveaxis(xyz, 0, -1)
 
@@ -19,13 +20,13 @@ def visualize_xyz(xyz):
     zeros = np.prod(img, axis=2) == 0
     img -= np.min(img)
     img /= np.max(img)
-    img[zeros] = np.array([0. , 0. , 0.])
+    img[zeros] = np.array([0., 0., 0.])
 
     plt.imshow(img)
 
     fig = plt.figure()
     ax = fig.add_subplot(projection='3d')
-    ax.scatter(points[:,0], points[:,1], points[:,2], marker='o')
+    ax.scatter(points[:, 0], points[:, 1], points[:, 2], marker='o')
 
     plt.show()
 
@@ -56,6 +57,7 @@ class Dataset(Dataset):
     def __init__(self, path, split, width, height, preload=True,
                  cutout_prob=0.0, cutout_inside=True,
                  max_cutout_size=0.8, min_cutout_size=0.2,
+                 crop_prob=0.0, crop_max_amount=0.3, crop_min_amount=0.0,
                  noise_sigma=None, t_sigma=0.0, random_rot=False):
         self.dataset_dir = os.path.dirname(path)
         self.split = split
@@ -72,8 +74,18 @@ class Dataset(Dataset):
         self.max_cutout_size = max_cutout_size
         self.min_cutout_size = min_cutout_size
 
+        self.crop_prob = crop_prob
+        self.crop_max_amount = crop_max_amount
+        self.crop_min_amount = crop_min_amount
+        self.use_crop = crop_prob > 0.0
+
+        self.synthetic = dict()
+
         if self.split != 'train' and self.cutout_prob > 0.0:
             print("***** Split is not train, but cutout is enabled! *****")
+
+        if self.split != 'train' and self.use_crop:
+            print("***** Split is not train, but crop is enabled! *****")
 
         print("Loading dataset from path: ", path)
         with open(path, 'r') as f:
@@ -84,6 +96,13 @@ class Dataset(Dataset):
             for p in {'exr_normals_path', 'exr_positions_path', 'txt_path'}:
                 self.entries[i][p] = os.path.join(*self.entries[i][p].split('\\'))
 
+        if self.use_crop:
+            _, xyz_full = self.load_xyz(self.entries[0])
+            full_width, full_height = xyz_full.shape[0], xyz_full.shape[1]
+            cw = full_width * (1.0 - self.crop_max_amount)
+            ch = full_height * (1.0 - self.crop_max_amount)
+            if cw < self.width or ch < self.height:
+                raise ValueError("Crop amount is too big (full_width: ", full_width, "full_height: ", full_height, "crop_width: ", cw, "crop_height: ", ch,")")
 
         if 'train' not in path and 'val' not in path:
             if self.split == 'train':
@@ -97,7 +116,17 @@ class Dataset(Dataset):
             print("Preloading exrs to memory")
             for entry in self.entries:
                 print(entry)
-                entry['xyz'] = self.load_xyz(entry)
+                xyz, xyz_full = self.load_xyz(entry)
+                entry['xyz'] = xyz
+                if self.use_crop:
+                    entry['xyz_full'] = xyz_full
+
+    def isSynthetic(self, entry):
+        exr_path = os.path.join(self.dataset_dir, entry['exr_positions_path'])
+        if exr_path not in self.synthetic:
+            dir = os.path.dirname(exr_path)
+            self.synthetic[exr_path] = os.path.exists(os.path.join(dir, 'synthetic'))
+        return self.synthetic[exr_path]
 
     def cutout(self, xyz):
         mask_width = np.random.randint(int(self.min_cutout_size * self.width), int(self.max_cutout_size * self.width))
@@ -149,13 +178,14 @@ class Dataset(Dataset):
         :return: pointcloud wit shape (3, height, width)
         """
         exr_path = os.path.join(self.dataset_dir, entry['exr_positions_path'])
-        xyz = cv2.imread(exr_path,  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
-        if xyz is None:
+        xyz_full = cv2.imread(exr_path,  cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH)
+        #xyz_full = cv2.resize(xyz_full, (1024, 1024), interpolation=cv2.INTER_NEAREST_EXACT)
+        if xyz_full is None:
             print(exr_path)
             raise ValueError("Image at path ", exr_path)
-        xyz = cv2.resize(xyz, (self.width, self.height), interpolation=cv2.INTER_NEAREST_EXACT)
+        xyz = cv2.resize(xyz_full, (self.width, self.height), interpolation=cv2.INTER_NEAREST_EXACT)
         xyz = np.transpose(xyz, [2, 0, 1])
-        return xyz
+        return xyz, xyz_full
 
     def get_aug_transform(self):
         """
@@ -192,6 +222,19 @@ class Dataset(Dataset):
         xyz_t = np.reshape(xyz_t, orig_shape)
         return xyz_t
 
+    def crop(self, xyz_full):
+        width, height = xyz_full.shape[0], xyz_full.shape[1]
+        crop_amount = self.crop_max_amount * np.random.rand() + self.crop_min_amount
+        crop_width = int(width * (1.0-crop_amount))
+        crop_height = int(height * (1.0-crop_amount))
+        crop_x_start = np.random.randint(width - crop_width)
+        crop_x_end = crop_x_start + crop_width
+        crop_y_start = np.random.randint(height - crop_height)
+        crop_y_end = crop_y_start + crop_height
+        cropped = xyz_full[crop_x_start:crop_x_end, crop_y_start:crop_y_end, :]
+        resized = cv2.resize(cropped, (self.width, self.height), interpolation=cv2.INTER_NEAREST_EXACT)
+        return np.transpose(resized, [2, 0, 1])
+
     def __getitem__(self, index):
         """
         Returns one sample for training
@@ -221,7 +264,13 @@ class Dataset(Dataset):
         if self.preload:
             xyz = entry['xyz']
         else:
-            xyz = self.load_xyz(entry)
+            xyz, xyz_full = self.load_xyz(entry)
+
+        if self.use_crop:
+            if self.preload:
+                xyz_full = entry['xyz_full']
+            if np.random.rand() < self.crop_prob:
+                xyz = self.crop(xyz_full)
 
         if self.split == 'train':
             xyz = self.aug(xyz, aug_transform)
